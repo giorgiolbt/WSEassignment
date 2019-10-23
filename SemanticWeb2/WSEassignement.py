@@ -84,7 +84,6 @@ from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
 
 # 2.1 No Filter: Consider all the words
-# text = book.replace('\n', ' ') to be removed
 wordcloud1 = WordCloud(width = 800, height = 800, stopwords = set(), background_color = 'white').generate(book)
 plt.imshow(wordcloud1, interpolation="bilinear")
 plt.axis('off')
@@ -117,10 +116,10 @@ Counter(labels)
 # All the entities are concatenated in order to obtain a string with all the entities and be able to extract word
 # cloud from this
 # TODO To remove duplication we could have set collocations=False among the parameters of 'WordCloud'
-entitiesConcatenated = ""
+entities_concat = ""
 for entity in entities.ents:
-     entitiesConcatenated += entity.text + " "
-wordcloud3 = WordCloud(width = 800, height = 800, stopwords = STOPWORDS,background_color='white').generate(entitiesConcatenated)
+     entities_concat += entity.text + " "
+wordcloud3 = WordCloud(width = 800, height = 800, stopwords = STOPWORDS,background_color='white').generate(entities_concat)
 plt.imshow(wordcloud3, interpolation="bilinear")
 plt.axis('off')
 plt.show()
@@ -143,6 +142,12 @@ plt.show()
 import en_core_web_lg
 nlp = en_core_web_lg.load()
 
+nlp_en = spacy.load("/tmp/la_vectors_wiki_lg")
+# needed since the default limit is 1000000 and some of the picked books are longer
+nlp.max_length = 2000000
+nlp_en.max_length = 2000000
+
+
 # returns the content of the file passed as an argument
 def get_file_contents(filename):
     with open(filename, mode = 'r', encoding = 'utf-8-sig') as filehandle:
@@ -151,13 +156,23 @@ def get_file_contents(filename):
         file.close()
         return filecontent
 
-# Compares the books in list_of_books to the book with the 'similarity' function
-# and sort them in a descending order according to the similarity
-def rank_books(book, list_of_books):
+# Compares the books'entities in list_of_books to the book's entity with the 'similarity' function
+# and sort them in a descending order according to the similarity. Returns a list of tuples that contain
+# pairs of type (title, similarity)
+def rank_books(book_entities_concat, list_of_books):
     result = []
     for i in range(0, len(list_of_books)):
+        # title of the book that will be compared
         title = list_of_books[i][0]
-        similarity = nlp(list_of_books[i][1]).similarity(book)
+        # extract the entities of the book that will be compared and join them in a string (entities_concat_new_book)
+        # with the for loop
+        entities_new_book = nlp(list_of_books[i][1])
+        entities_concat_new_book = ""
+        for entity in entities_new_book.ents:
+            entities_concat_new_book += entity.text + " "
+        # compute the similarity between the extracted entities jointed in a string and the entities of my book
+        # concatenated in a string as well
+        similarity = nlp_en(entities_concat_new_book).similarity(nlp_en(book_entities_concat))
         result += [(title, similarity)]
     # sort the element in the result according to the similarity in a descending order
     return sorted(result, key=lambda x: x[1], reverse=True)
@@ -171,9 +186,6 @@ booksTitles = ["A Christmas Carol in Prose; Being a Ghost Story of Christmas by 
                "The Prince by Niccolò Machiavelli",
                "The Strange Case of Dr. Jekyll and Mr. Hyde by Robert Louis Stevenson"]
 
-# list of tuples that contains (title, content) pairs
+# list of tuples that contains (title, content) pairs of the books to be compared to the book
 booksToBeCompared = [(title, get_file_contents(title)) for title in booksTitles]
-
-# needed since the default limit is 1000000 and some of the picked books are longer
-nlp.max_length = 2000000
-answer3 = rank_books(nlp(book), booksToBeCompared)
+answer3 = rank_books(entities_concat, booksToBeCompared)
